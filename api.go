@@ -198,7 +198,7 @@ func (api *API) NewRequest(path string, reqBody interface{}, respData interface{
 	return
 }
 
-func (api *API) GetAccessToken() (err error) {
+func (api *API) GetAccessToken() (expire int, err error) {
 	var data AccessTokenResponse
 	err = api.NewRequest(
 		// path
@@ -224,6 +224,7 @@ func (api *API) GetAccessToken() (err error) {
 	}
 	api.accessToken = data.Token
 	api.accessTokenExpire = data.Expire
+	expire = data.Expire
 	return
 }
 
