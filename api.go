@@ -105,12 +105,13 @@ type (
 
 		// type == "event_callback"
 		Event struct {
-			ChatId     string `json:"open_chat_id"`
-			Type       string `json:"type"`
-			MsgType    string `json:"msg_type"`
-			Text       string `json:"text"`
-			OpenId     string `json:"open_id"`
-			UserOpenId string `json:"user_open_id"`
+			ChatId           string `json:"open_chat_id"`
+			Type             string `json:"type"`
+			MsgType          string `json:"msg_type"`
+			Text             string `json:"text"`
+			TextWithoutAtBot string `json:"text_without_at_bot"`
+			OpenId           string `json:"open_id"`
+			UserOpenId       string `json:"user_open_id"`
 		} `json:"event"`
 	}
 
