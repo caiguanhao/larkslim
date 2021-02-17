@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -115,6 +118,13 @@ type (
 		} `json:"event"`
 	}
 
+	UploadResponse struct {
+		APIResponse
+		Data struct {
+			ImageKey string `json:"image_key"`
+		} `json:"data"`
+	}
+
 	PostTag struct {
 		Tag      string `json:"tag,omitempty"`
 		Unescape bool   `json:"un_escape,omitempty"`
@@ -138,42 +148,54 @@ type (
 	Post map[string]PostOfLocale
 )
 
-func (api *API) NewRequest(path string, reqBody interface{}, respData interface{}) (err error) {
-	client := http.Client{
-		Timeout: api.Timeout,
-	}
-	var reqData []byte
+func (api *API) newRequest(path string, reqBody interface{}) (req *http.Request, err error) {
+	var body io.Reader
+	var debug func()
 	switch v := reqBody.(type) {
+	case io.Reader:
+		body = v
 	case Protected:
-		reqData, err = json.Marshal(v.Original)
-	default:
-		reqData, err = json.Marshal(v)
-	}
-	if err != nil {
-		return
-	}
-	if api.Debugger != nil {
-		switch v := reqBody.(type) {
-		case Protected:
+		reqData, err := json.Marshal(v.Original)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewReader(reqData)
+		debug = func() {
 			reqDataFiltered, _ := json.Marshal(v.Filtered)
 			api.Debugger("request body:", string(reqDataFiltered))
-		default:
+		}
+	default:
+		reqData, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewReader(reqData)
+		debug = func() {
 			api.Debugger("request body:", string(reqData))
 		}
 	}
-	var req *http.Request
-	req, err = http.NewRequest("POST", Prefix+path, bytes.NewReader(reqData))
+	if api.Debugger != nil && debug != nil {
+		debug()
+	}
+	req, err = http.NewRequest("POST", Prefix+path, body)
 	if err != nil {
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+api.accessToken)
+	return
+}
+
+func (api *API) do(req *http.Request, respData interface{}) (err error) {
 	var resp *http.Response
+	client := http.Client{
+		Timeout: api.Timeout,
+	}
 	resp, err = client.Do(req)
 	if err != nil {
 		return
 	}
 	if api.Debugger != nil {
-		api.Debugger(Prefix+path, "->", resp.Status)
+		api.Debugger(req.URL.String(), "->", resp.Status)
 	}
 	defer resp.Body.Close()
 	var res []byte
@@ -197,6 +219,15 @@ func (api *API) NewRequest(path string, reqBody interface{}, respData interface{
 		err = json.Unmarshal(res, respData)
 	}
 	return
+}
+
+func (api *API) NewRequest(path string, reqBody interface{}, respData interface{}) (err error) {
+	var req *http.Request
+	req, err = api.newRequest(path, reqBody)
+	if err != nil {
+		return
+	}
+	return api.do(req, respData)
 }
 
 func (api *API) GetAccessToken() (expire int, err error) {
@@ -367,7 +398,8 @@ func (api *API) RemoveUsersFromChat(chatId string, userIds []string) (err error)
 	return
 }
 
-func (api *API) SendMessage(chatId, content string) (err error) {
+func (api *API) SendMessage(target, content string) (err error) {
+	a, b, c, d := parseTarget(target)
 	var data MessageResponse
 	err = api.NewRequest(
 		// path
@@ -375,10 +407,13 @@ func (api *API) SendMessage(chatId, content string) (err error) {
 
 		// request body
 		struct {
-			ChatId  string      `json:"chat_id"`
+			OpenId  *string     `json:"open_id,omitempty"`
+			ChatId  *string     `json:"chat_id,omitempty"`
+			Email   *string     `json:"email,omitempty"`
+			UserId  *string     `json:"user_id,omitempty"`
 			MsgType string      `json:"msg_type"`
 			Content interface{} `json:"content"`
-		}{chatId, "text", struct {
+		}{a, b, c, d, "text", struct {
 			Text string `json:"text"`
 		}{content}},
 
@@ -388,7 +423,8 @@ func (api *API) SendMessage(chatId, content string) (err error) {
 	return
 }
 
-func (api *API) SendPost(chatId string, post Post) (err error) {
+func (api *API) SendImageMessage(target, imageKey string) (err error) {
+	a, b, c, d := parseTarget(target)
 	var data MessageResponse
 	err = api.NewRequest(
 		// path
@@ -396,16 +432,89 @@ func (api *API) SendPost(chatId string, post Post) (err error) {
 
 		// request body
 		struct {
-			ChatId  string      `json:"chat_id"`
+			OpenId  *string     `json:"open_id,omitempty"`
+			ChatId  *string     `json:"chat_id,omitempty"`
+			Email   *string     `json:"email,omitempty"`
+			UserId  *string     `json:"user_id,omitempty"`
 			MsgType string      `json:"msg_type"`
 			Content interface{} `json:"content"`
-		}{chatId, "post", struct {
+		}{a, b, c, d, "image", struct {
+			ImageKey string `json:"image_key"`
+		}{imageKey}},
+
+		// response
+		&data,
+	)
+	return
+}
+
+func (api *API) SendPost(target string, post Post) (err error) {
+	a, b, c, d := parseTarget(target)
+	var data MessageResponse
+	err = api.NewRequest(
+		// path
+		"/message/v4/send/",
+
+		// request body
+		struct {
+			OpenId  *string     `json:"open_id,omitempty"`
+			ChatId  *string     `json:"chat_id,omitempty"`
+			Email   *string     `json:"email,omitempty"`
+			UserId  *string     `json:"user_id,omitempty"`
+			MsgType string      `json:"msg_type"`
+			Content interface{} `json:"content"`
+		}{a, b, c, d, "post", struct {
 			Post Post `json:"post"`
 		}{post}},
 
 		// response
 		&data,
 	)
+	return
+}
+
+func (api *API) UploadAvatarImage(file io.Reader) (key string, err error) {
+	return api.uploadImage("avatar", file)
+}
+
+func (api *API) UploadMessageImage(file io.Reader) (key string, err error) {
+	return api.uploadImage("message", file)
+}
+
+func (api *API) uploadImage(imageType string, file io.Reader) (key string, err error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	var part io.Writer
+	part, err = writer.CreateFormFile("image", "image")
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return
+	}
+	writer.WriteField("image_type", imageType)
+	err = writer.Close()
+	if err != nil {
+		return
+	}
+	var req *http.Request
+	req, err = api.newRequest(
+		// path
+		"/image/v4/put/",
+
+		// request body
+		body,
+	)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	var data UploadResponse
+	err = api.do(req, &data)
+	if err == nil {
+		key = data.Data.ImageKey
+	}
 	return
 }
 
@@ -441,4 +550,17 @@ func (userInfos *UserInfos) String() string {
 		b.WriteString(user.OpenId)
 	}
 	return b.String()
+}
+
+func parseTarget(target string) (*string, *string, *string, *string) {
+	if strings.HasPrefix(target, "ou_") {
+		return &target, nil, nil, nil
+	}
+	if strings.HasPrefix(target, "oc_") {
+		return nil, &target, nil, nil
+	}
+	if strings.HasPrefix(target, "@") {
+		return nil, nil, &target, nil
+	}
+	return nil, nil, nil, &target
 }
