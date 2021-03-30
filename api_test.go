@@ -1,4 +1,4 @@
-package lark_test
+package larkslim_test
 
 import (
 	"bytes"
@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiguanhao/lark-slim"
+	"github.com/caiguanhao/larkslim"
 )
 
 func TestAPI(t *testing.T) {
 	appId := os.Getenv("LARK_APP_ID")
 	appSecret := os.Getenv("LARK_APP_SECRET")
-	l := lark.API{
+	l := larkslim.API{
 		AppId:     appId,
 		AppSecret: appSecret,
 	}
@@ -65,10 +65,10 @@ func TestAPI(t *testing.T) {
 }
 
 func ExamplePost() {
-	post := lark.Post{
-		"zh_cn": lark.PostOfLocale{
+	post := larkslim.Post{
+		"zh_cn": larkslim.PostOfLocale{
 			Title: "post",
-			Content: lark.PostLines{
+			Content: larkslim.PostLines{
 				{
 					{
 						Tag:  "text",

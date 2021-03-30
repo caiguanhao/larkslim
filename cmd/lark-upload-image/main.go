@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/caiguanhao/lark-slim"
+	"github.com/caiguanhao/larkslim"
 )
 
 func die(a ...interface{}) {
@@ -44,7 +44,7 @@ func main() {
 		die("error: empty app secret")
 	}
 
-	l := lark.API{
+	l := larkslim.API{
 		AppId:     appId,
 		AppSecret: appSecret,
 	}
