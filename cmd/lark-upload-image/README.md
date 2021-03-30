@@ -1,7 +1,7 @@
 # lark-upload-image
 
 ```
-go get -v github.com/caiguanhao/lark-slim/cmd/lark-upload-image
+go get -v github.com/caiguanhao/larkslim/cmd/lark-upload-image
 ```
 
 Usage:
