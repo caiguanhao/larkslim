@@ -90,22 +90,6 @@ func (h *Server) handleLarkCards(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.EventVerificationToken != "" {
-		var b strings.Builder
-		b.WriteString(r.Header.Get("X-Lark-Request-Timestamp"))
-		b.WriteString(r.Header.Get("X-Lark-Request-Nonce"))
-		b.WriteString(h.EventVerificationToken)
-		b.Write(body)
-		bs := []byte(b.String())
-		h := sha1.New()
-		h.Write(bs)
-		bs = h.Sum(nil)
-		sig := fmt.Sprintf("%x", bs)
-		fmt.Println(r.Header, sig)
-		if r.Header.Get("X-Lark-Signature") != sig {
-			returnError(errors.New("wrong signature"))
-		}
-	}
 	var resp map[string]interface{}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		returnError(err)
@@ -122,6 +106,17 @@ func (h *Server) handleLarkCards(w http.ResponseWriter, r *http.Request) {
 		if value != "url_verification" {
 			goto end
 		}
+		var token string
+		if t, ok := resp["token"]; ok {
+			tt, ok := t.(string)
+			if ok {
+				token = tt
+			}
+		}
+		if h.EventVerificationToken != "" && h.EventVerificationToken != token {
+			returnError(errors.New("wrong verification token"))
+			return
+		}
 		if data, err := json.Marshal(map[string]interface{}{
 			"challenge": resp["challenge"],
 		}); err == nil {
@@ -130,6 +125,23 @@ func (h *Server) handleLarkCards(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	if h.EventVerificationToken != "" {
+		var b strings.Builder
+		b.WriteString(r.Header.Get("X-Lark-Request-Timestamp"))
+		b.WriteString(r.Header.Get("X-Lark-Request-Nonce"))
+		b.WriteString(h.EventVerificationToken)
+		b.Write(body)
+		bs := []byte(b.String())
+		h := sha1.New()
+		h.Write(bs)
+		bs = h.Sum(nil)
+		sig := fmt.Sprintf("%x", bs)
+		if r.Header.Get("X-Lark-Signature") != sig {
+			returnError(errors.New("wrong signature"))
+		}
+	}
+
 	if v, ok := resp["action"]; ok {
 		if h.CardCallbackHandler != nil {
 			h.CardCallbackHandler(w, v)
