@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -101,7 +102,8 @@ type (
 	}
 
 	EventResponse struct {
-		Type string `json:"type"`
+		Type  string `json:"type"`
+		Token string `json:"token"`
 
 		// type == "url_verification"
 		Challenge string `json:"challenge"`
@@ -146,7 +148,42 @@ type (
 	}
 
 	Post map[string]PostOfLocale
+
+	Card struct {
+		Config   CardConfig    `json:"config"`
+		Header   CardHeader    `json:"header"`
+		Elements []interface{} `json:"elements"`
+	}
+
+	CardConfig struct {
+		WideScreenMode bool `json:"wide_screen_mode"`
+		EnableForward  bool `json:"enable_forward"`
+	}
+
+	// https://open.feishu.cn/document/ukTMukTMukTM/ukTNwUjL5UDM14SO1ATN
+	CardHeader struct {
+		Title    CardHeaderTitle `json:"title"`
+		Template string          `json:"template"`
+	}
+
+	CardHeaderTitle struct {
+		Tag     string `json:"tag"`
+		Content string `json:"content"`
+	}
 )
+
+func NewAPI(appId, appSecret string) *API {
+	if appId == "" {
+		appId = os.Getenv("LARK_APP_ID")
+	}
+	if appSecret == "" {
+		appSecret = os.Getenv("LARK_APP_SECRET")
+	}
+	return &API{
+		AppId:     appId,
+		AppSecret: appSecret,
+	}
+}
 
 func (api *API) newRequest(path string, reqBody interface{}) (req *http.Request, err error) {
 	var body io.Reader
@@ -394,6 +431,29 @@ func (api *API) RemoveUsersFromChat(chatId string, userIds []string) (err error)
 
 		// response
 		nil,
+	)
+	return
+}
+
+func (api *API) SendCard(target string, card Card) (err error) {
+	a, b, c, d := parseTarget(target)
+	var data MessageResponse
+	err = api.NewRequest(
+		// path
+		"/message/v4/send/",
+
+		// request body
+		struct {
+			OpenId  *string     `json:"open_id,omitempty"`
+			ChatId  *string     `json:"chat_id,omitempty"`
+			Email   *string     `json:"email,omitempty"`
+			UserId  *string     `json:"user_id,omitempty"`
+			MsgType string      `json:"msg_type"`
+			Card    interface{} `json:"card"`
+		}{a, b, c, d, "interactive", card},
+
+		// response
+		&data,
 	)
 	return
 }
