@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -92,12 +91,10 @@ type (
 		OpenId string `json:"open_id"`
 	}
 
-	UserInfos []UserInfo
-
 	UserInfoResponse struct {
 		APIResponse
 		Data struct {
-			UserInfos UserInfos `json:"user_infos"`
+			UserInfo UserInfo `json:"user"`
 		} `json:"data"`
 	}
 
@@ -185,7 +182,7 @@ func NewAPI(appId, appSecret string) *API {
 	}
 }
 
-func (api *API) newRequest(path string, reqBody interface{}) (req *http.Request, err error) {
+func (api *API) newRequest(method, path string, reqBody interface{}) (req *http.Request, err error) {
 	var body io.Reader
 	var debug func()
 	switch v := reqBody.(type) {
@@ -214,7 +211,7 @@ func (api *API) newRequest(path string, reqBody interface{}) (req *http.Request,
 	if api.Debugger != nil && debug != nil {
 		debug()
 	}
-	req, err = http.NewRequest("POST", Prefix+path, body)
+	req, err = http.NewRequest(method, Prefix+path, body)
 	if err != nil {
 		return
 	}
@@ -258,9 +255,9 @@ func (api *API) do(req *http.Request, respData interface{}) (err error) {
 	return
 }
 
-func (api *API) NewRequest(path string, reqBody interface{}, respData interface{}) (err error) {
+func (api *API) NewRequest(method, path string, reqBody interface{}, respData interface{}) (err error) {
 	var req *http.Request
-	req, err = api.newRequest(path, reqBody)
+	req, err = api.newRequest(method, path, reqBody)
 	if err != nil {
 		return
 	}
@@ -270,6 +267,9 @@ func (api *API) NewRequest(path string, reqBody interface{}, respData interface{
 func (api *API) GetAccessToken() (expire int, err error) {
 	var data AccessTokenResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/auth/v3/tenant_access_token/internal/",
 
@@ -300,6 +300,9 @@ func (api *API) GetAccessToken() (expire int, err error) {
 func (api *API) ListAllChats() (groups Groups, err error) {
 	var data GroupsResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/chat/v4/list/",
 
@@ -318,6 +321,9 @@ func (api *API) ListAllChats() (groups Groups, err error) {
 func (api *API) GetChatInfo(chatId string) (group Group, err error) {
 	var data GroupInfoResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/chat/v4/info/",
 
@@ -336,18 +342,17 @@ func (api *API) GetChatInfo(chatId string) (group Group, err error) {
 	return
 }
 
-func (api *API) GetUserInfo(userIds []string) (userInfos UserInfos, err error) {
-	v := url.Values{}
-	for _, userId := range userIds {
-		v.Add("open_ids", userId)
-	}
+func (api *API) GetUserInfo(userId string) (userInfo UserInfo, err error) {
 	var data UserInfoResponse
 	err = api.NewRequest(
+		// method
+		"GET",
+
 		// path
-		"/contact/v1/user/batch_get",
+		"/contact/v3/users/"+userId,
 
 		// request body
-		v,
+		nil,
 
 		// response
 		&data,
@@ -355,13 +360,16 @@ func (api *API) GetUserInfo(userIds []string) (userInfos UserInfos, err error) {
 	if err != nil {
 		return
 	}
-	userInfos = data.Data.UserInfos
+	userInfo = data.Data.UserInfo
 	return
 }
 
 func (api *API) CreateChat(name, userOpenId string) (chatId string, err error) {
 	var data GroupResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/chat/v4/create/",
 
@@ -383,6 +391,9 @@ func (api *API) CreateChat(name, userOpenId string) (chatId string, err error) {
 
 func (api *API) DestroyChat(chatId string) (err error) {
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/chat/v4/disband/",
 
@@ -400,6 +411,9 @@ func (api *API) DestroyChat(chatId string) (err error) {
 func (api *API) AddUsersToChat(chatId string, userIds []string) (err error) {
 	var data GroupResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/chat/v4/chatter/add/",
 
@@ -420,6 +434,9 @@ func (api *API) AddUsersToChat(chatId string, userIds []string) (err error) {
 
 func (api *API) RemoveUsersFromChat(chatId string, userIds []string) (err error) {
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/chat/v4/chatter/delete/",
 
@@ -439,6 +456,9 @@ func (api *API) SendCard(target string, card Card) (err error) {
 	a, b, c, d := parseTarget(target)
 	var data MessageResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/message/v4/send/",
 
@@ -462,6 +482,9 @@ func (api *API) SendMessage(target, content string) (err error) {
 	a, b, c, d := parseTarget(target)
 	var data MessageResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/message/v4/send/",
 
@@ -487,6 +510,9 @@ func (api *API) SendImageMessage(target, imageKey string) (err error) {
 	a, b, c, d := parseTarget(target)
 	var data MessageResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/message/v4/send/",
 
@@ -512,6 +538,9 @@ func (api *API) SendPost(target string, post Post) (err error) {
 	a, b, c, d := parseTarget(target)
 	var data MessageResponse
 	err = api.NewRequest(
+		// method
+		"POST",
+
 		// path
 		"/message/v4/send/",
 
@@ -560,6 +589,9 @@ func (api *API) uploadImage(imageType string, file io.Reader) (key string, err e
 	}
 	var req *http.Request
 	req, err = api.newRequest(
+		// method
+		"POST",
+
 		// path
 		"/image/v4/put/",
 
@@ -591,23 +623,6 @@ func (groups *Groups) String() string {
 		b.WriteString(group.Name)
 		b.WriteString(": ")
 		b.WriteString(group.ChatId)
-	}
-	return b.String()
-}
-
-func (userInfos *UserInfos) String() string {
-	if len(*userInfos) == 0 {
-		return "no users"
-	}
-	var b bytes.Buffer
-	for i, user := range *userInfos {
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString(fmt.Sprintf("%d. ", i+1))
-		b.WriteString(user.Name)
-		b.WriteString(": ")
-		b.WriteString(user.OpenId)
 	}
 	return b.String()
 }

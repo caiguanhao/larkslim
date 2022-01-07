@@ -40,11 +40,12 @@ func TestAPI(t *testing.T) {
 		t.Log("GetChatInfo() passed")
 		if len(chat.Members) > 0 {
 			user := chat.Members[0].OpenId
-			users := []string{user}
-			_, err := l.GetUserInfo(users)
+			userInfo, err := l.GetUserInfo(user)
 			if err != nil {
 				t.Fatal(err)
 			}
+			t.Log("user info:", userInfo)
+			users := []string{user}
 			err = l.AddUsersToChat(chat.ChatId, users)
 			if err != nil {
 				t.Fatal(err)
