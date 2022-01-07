@@ -48,10 +48,6 @@ func main() {
 		AppId:     appId,
 		AppSecret: appSecret,
 	}
-	_, err := l.GetAccessToken()
-	if err != nil {
-		die(err)
-	}
 
 	args := flag.Args()
 	var uploadFunc func(io.Reader) (string, error)

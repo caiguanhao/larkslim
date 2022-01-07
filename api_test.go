@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,47 +23,70 @@ func TestAPI(t *testing.T) {
 		AppId:     appId,
 		AppSecret: appSecret,
 	}
-	_, err := l.GetAccessToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log("GetAccessToken() passed")
+
 	chats, err := l.ListAllChats()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log("ListAllChats() passed")
-	if len(chats) > 0 {
-		chat, err := l.GetChatInfo(chats[0].ChatId)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Log("GetChatInfo() passed")
-		if len(chat.Members) > 0 {
-			user := chat.Members[0].OpenId
-			userInfo, err := l.GetUserInfo(user)
+	t.Log("ListAllChats() passed, chats:", len(chats))
+	if len(chats) == 0 {
+		t.Log("no chats to test")
+		return
+	}
+	t.Log("using chat:", chats[0].Name)
+	chat, err := l.GetChatInfo(chats[0].ChatId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("GetChatInfo() passed")
+	if len(chat.Members) == 0 {
+		t.Log("no chat members to test")
+		return
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < len(chat.Members); i++ {
+		wg.Add(1)
+		openId := chat.Members[i].OpenId
+		go func() {
+			defer wg.Done()
+			userInfo, err := l.GetUserInfo(openId)
 			if err != nil {
 				t.Fatal(err)
 			}
 			t.Log("user info:", userInfo)
-			users := []string{user}
-			err = l.AddUsersToChat(chat.ChatId, users)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Log("AddUsersToChat() passed")
-			key, err := l.UploadMessageImage(randomImage())
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Log("UploadMessageImage() passed")
-			err = l.SendImageMessage(user, key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Log("SendImageMessage() passed")
-		}
+		}()
 	}
+	wg.Wait()
+
+	user := os.Getenv("LARK_OPENID")
+	if user == "" {
+		t.Log("Set LARK_OPENID env to run more tests")
+		return
+	}
+
+	userInfo, err := l.GetUserInfo(user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("user info:", userInfo)
+
+	users := []string{user}
+	err = l.AddUsersToChat(chat.ChatId, users)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("AddUsersToChat() passed")
+	key, err := l.UploadMessageImage(randomImage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("UploadMessageImage() passed")
+	err = l.SendImageMessage(user, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("SendImageMessage() passed")
 }
 
 func ExamplePost() {

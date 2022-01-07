@@ -10,11 +10,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	Prefix = "https://open.feishu.cn/open-apis"
+
+	getAccessToken = "/auth/v3/tenant_access_token/internal"
 )
 
 type (
@@ -26,8 +29,9 @@ type (
 
 		Debugger func(args ...interface{})
 
-		accessToken       string
-		accessTokenExpire int
+		accessToken          string
+		accessTokenExpiredAt time.Time
+		mutex                sync.Mutex
 	}
 
 	Protected struct {
@@ -215,6 +219,12 @@ func (api *API) newRequest(method, path string, reqBody interface{}) (req *http.
 	if err != nil {
 		return
 	}
+	if path != getAccessToken {
+		err = api.getAccessToken()
+		if err != nil {
+			return
+		}
+	}
 	req.Header.Set("Authorization", "Bearer "+api.accessToken)
 	return
 }
@@ -264,14 +274,19 @@ func (api *API) NewRequest(method, path string, reqBody interface{}, respData in
 	return api.do(req, respData)
 }
 
-func (api *API) GetAccessToken() (expire int, err error) {
+func (api *API) getAccessToken() (err error) {
+	api.mutex.Lock()
+	defer api.mutex.Unlock()
+	if !api.expired() {
+		return nil
+	}
 	var data AccessTokenResponse
 	err = api.NewRequest(
 		// method
 		"POST",
 
 		// path
-		"/auth/v3/tenant_access_token/internal/",
+		getAccessToken,
 
 		// request body
 		Protected{
@@ -292,9 +307,12 @@ func (api *API) GetAccessToken() (expire int, err error) {
 		return
 	}
 	api.accessToken = data.Token
-	api.accessTokenExpire = data.Expire
-	expire = data.Expire
+	api.accessTokenExpiredAt = time.Now().Add(time.Duration(data.Expire-30) * time.Second)
 	return
+}
+
+func (api *API) expired() bool {
+	return api.accessTokenExpiredAt.Before(time.Now())
 }
 
 func (api *API) ListAllChats() (groups Groups, err error) {
