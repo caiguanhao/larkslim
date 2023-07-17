@@ -407,6 +407,58 @@ func (api *API) CreateChat(name, userOpenId string) (chatId string, err error) {
 	return
 }
 
+// List of parameters to update:
+//
+// | Parameter                   | Type   | Required | Description
+// |-----------------------------|--------|----------|---------------------------------------------------
+// | owner_open_id               | string | Optional | Group owner's open_id (When transferring group
+// |                             |        |          | ownership, either owner_open_id or owner_user_id
+// |                             |        |          | can be filled in)
+// | owner_user_id               | string | Optional | Group owner's user_id (When transferring group
+// |                             |        |          | ownership, either owner_open_id or owner_user_id
+// |                             |        |          | can be filled in)
+// | name                        | string | Optional | Default display group name
+// | i18n_names                  | map    | Optional | Internationalized group name
+// | description                 | string | Optional | Group description
+// | only_owner_add              | bool   | Optional | Whether only the group owner can add people
+// | share_allowed               | bool   | Optional | Whether group sharing is allowed
+// | add_member_verify           | bool   | Optional | Whether to enable group join verification
+// | only_owner_at_all           | bool   | Optional | Whether only the group owner can @all
+// | only_owner_edit             | bool   | Optional | Whether only the group owner can edit group
+// |                             |        |          | information, including avatar, name, description,
+// |                             |        |          | and announcement
+// | send_message_permission     | string | Optional | Who is allowed to send messages. all: everyone,
+// |                             |        |          | owner: only group owner
+// | join_message_visibility     | string | Optional | Member join group notification. all: notify
+// |                             |        |          | everyone, owner: notify only owner, not_anyone:
+// |                             |        |          | notify no one
+// | leave_message_visibility    | string | Optional | Member leave group notification. all: notify
+// |                             |        |          | everyone, owner: notify only owner, not_anyone:
+// |                             |        |          | notify no one
+// | group_email_enabled         | bool   | Optional | Whether to enable group email
+// | send_group_email_permission | string | Optional | Permission to send group emails. owner: only
+// |                             |        |          | group owner, group_member: group members,
+// |                             |        |          | tenant_member: team members, all: everyone
+func (api *API) UpdateChat(chatId string, update map[string]interface{}) (err error) {
+	if update != nil {
+		update["chat_id"] = chatId
+	}
+	err = api.NewRequest(
+		// method
+		"POST",
+
+		// path
+		"/chat/v4/update/",
+
+		// request body
+		update,
+
+		// response
+		nil,
+	)
+	return
+}
+
 func (api *API) DestroyChat(chatId string) (err error) {
 	err = api.NewRequest(
 		// method
